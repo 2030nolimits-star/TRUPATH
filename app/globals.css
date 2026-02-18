@@ -1,6 +1,10 @@
+/* @tailwind base; */
+/* @tailwind components; */
+/* @tailwind utilities; */
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* tailwindcss v4 custom variant */
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -11,24 +15,31 @@
   --card-foreground: oklch(0.95 0.01 290);
   --popover: oklch(0.16 0.02 290);
   --popover-foreground: oklch(0.95 0.01 290);
-  --primary: oklch(0.65 0.22 290); /* Bright purple-pink */
+  --primary: oklch(0.65 0.22 290);
+  /* Bright purple-pink */
   --primary-foreground: oklch(0.12 0.02 290);
   --secondary: oklch(0.22 0.02 290);
   --secondary-foreground: oklch(0.95 0.01 290);
   --muted: oklch(0.22 0.02 290);
   --muted-foreground: oklch(0.6 0.03 290);
-  --accent: oklch(0.65 0.2 240); /* Bright blue accent */
+  --accent: oklch(0.65 0.2 240);
+  /* Bright blue accent */
   --accent-foreground: oklch(0.12 0.02 290);
   --destructive: oklch(0.6 0.22 20);
   --destructive-foreground: oklch(0.95 0.01 290);
   --border: oklch(0.25 0.02 290);
   --input: oklch(0.22 0.02 290);
   --ring: oklch(0.65 0.22 290);
-  --chart-1: oklch(0.65 0.22 320); /* Pink */
-  --chart-2: oklch(0.65 0.2 240); /* Blue */
-  --chart-3: oklch(0.6 0.22 290); /* Purple */
-  --chart-4: oklch(0.7 0.2 260); /* Light blue */
-  --chart-5: oklch(0.62 0.24 310); /* Purple-pink */
+  --chart-1: oklch(0.65 0.22 320);
+  /* Pink */
+  --chart-2: oklch(0.65 0.2 240);
+  /* Blue */
+  --chart-3: oklch(0.6 0.22 290);
+  /* Purple */
+  --chart-4: oklch(0.7 0.2 260);
+  /* Light blue */
+  --chart-5: oklch(0.62 0.24 310);
+  /* Purple-pink */
   --radius: 0.5rem;
 }
 
@@ -79,10 +90,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
     background-image: radial-gradient(circle at top left, oklch(0.2 0.05 290 / 0.15), transparent),
-                      radial-gradient(circle at bottom right, oklch(0.65 0.2 240 / 0.1), transparent);
+      radial-gradient(circle at bottom right, oklch(0.65 0.2 240 / 0.1), transparent);
     background-attachment: fixed;
   }
 }
@@ -91,9 +103,11 @@
   .glass {
     @apply bg-card/60 backdrop-blur-md border-white/10 shadow-xl;
   }
+
   .glass-dark {
     @apply bg-black/40 backdrop-blur-lg border-white/5 shadow-2xl;
   }
+
   .glass-border {
     @apply border border-white/10;
   }

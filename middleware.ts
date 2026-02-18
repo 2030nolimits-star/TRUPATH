@@ -8,15 +8,27 @@ export async function middleware(request: NextRequest) {
         },
     })
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+        return response
+    }
+
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        supabaseUrl,
+        supabaseKey,
         {
             cookies: {
                 get(name: string) {
                     return request.cookies.get(name)?.value
                 },
                 set(name: string, value: string, options: any) {
+                    request.cookies.set({
+                        name,
+                        value,
+                        ...options,
+                    })
                     response = NextResponse.next({
                         request: {
                             headers: request.headers,
@@ -29,6 +41,11 @@ export async function middleware(request: NextRequest) {
                     })
                 },
                 remove(name: string, options: any) {
+                    request.cookies.set({
+                        name,
+                        value: "",
+                        ...options,
+                    })
                     response = NextResponse.next({
                         request: {
                             headers: request.headers,
