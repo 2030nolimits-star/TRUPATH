@@ -20,6 +20,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { CalendarView } from "@/components/calendar-view"
+import { toast } from "sonner"
+import { exportToCSV } from "@/lib/export"
+import { notificationService } from "@/lib/notifications"
 
 export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([])
@@ -40,21 +43,28 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchEvents()
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setHasNotificationPermission(Notification.permission === "granted")
-    }
+    setHasNotificationPermission(notificationService.getPermissionStatus() === "granted")
     const interval = setInterval(checkUpcomingEvents, 60000)
     return () => clearInterval(interval)
   }, [])
 
   async function fetchEvents() {
     setIsLoading(true)
-    const { data, error } = await supabase.from("calendar_events").select("*").order("event_date", { ascending: true })
+    try {
+      const { data, error } = await supabase.from("calendar_events").select("*").order("event_date", { ascending: true })
 
-    if (!error && data) {
-      setEvents(data)
+      if (error) {
+        console.error("Error fetching events:", error)
+        toast.error("Failed to load events")
+      } else if (data) {
+        setEvents(data)
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err)
+      toast.error("An unexpected error occurred")
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   async function checkUpcomingEvents() {
@@ -71,12 +81,11 @@ export default function CalendarPage() {
     })
 
     for (const event of upcomingEvents) {
-      if (Notification.permission === "granted") {
-        new Notification("Upcoming Event", {
-          body: `${event.title} starts in 30 minutes`,
-          icon: "/icon.svg",
-        })
-      }
+      notificationService.send({
+        title: "Upcoming Event",
+        body: `${event.title} starts in 30 minutes`,
+        tag: `event-${event.id}`,
+      })
       await supabase.from("calendar_events").update({ notification_sent: true }).eq("id", event.id)
     }
 
@@ -86,39 +95,90 @@ export default function CalendarPage() {
   }
 
   async function requestNotificationPermission() {
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
-      const permission = await Notification.requestPermission()
-      setHasNotificationPermission(permission === "granted")
+    const granted = await notificationService.requestPermission()
+    setHasNotificationPermission(granted)
+    if (granted) {
+      toast.success("Notifications enabled")
+    } else {
+      toast.warning("Notifications blocked or not supported")
     }
   }
 
   async function saveEvent() {
-    if (!formData.title.trim() || !formData.event_date) return
+    if (!formData.title.trim() || !formData.event_date) {
+      toast.warning("Title and date are required")
+      return
+    }
 
-    if (editingEvent) {
-      const { error } = await supabase
-        .from("calendar_events")
-        .update({ ...formData, notification_sent: false })
-        .eq("id", editingEvent.id)
-      if (!error) {
-        setEditingEvent(null)
-        resetForm()
-        fetchEvents()
+    try {
+      if (editingEvent) {
+        const { error } = await supabase
+          .from("calendar_events")
+          .update({ ...formData, notification_sent: false })
+          .eq("id", editingEvent.id)
+
+        if (error) {
+          console.error("Error updating event:", error)
+          toast.error(`Failed to update event: ${error.message}`)
+        } else {
+          toast.success("Event updated successfully")
+          setEditingEvent(null)
+          resetForm()
+          fetchEvents()
+        }
+      } else {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          toast.error("You must be logged in")
+          return
+        }
+
+        const { error } = await supabase.from("calendar_events").insert([{ ...formData, user_id: user.id }])
+
+        if (error) {
+          console.error("Error creating event:", error)
+          toast.error(`Failed to create event: ${error.message}`)
+        } else {
+          toast.success("Event created successfully")
+          resetForm()
+          fetchEvents()
+        }
       }
-    } else {
-      const { error } = await supabase.from("calendar_events").insert([formData])
-      if (!error) {
-        resetForm()
-        fetchEvents()
-      }
+    } catch (err) {
+      console.error("Unexpected error saving event:", err)
+      toast.error("An unexpected error occurred")
     }
   }
 
   async function deleteEvent(id: string) {
-    const { error } = await supabase.from("calendar_events").delete().eq("id", id)
-    if (!error) {
-      fetchEvents()
+    if (!confirm("Are you sure you want to delete this event?")) return
+
+    try {
+      const { error } = await supabase.from("calendar_events").delete().eq("id", id)
+
+      if (error) {
+        console.error("Error deleting event:", error)
+        toast.error("Failed to delete event")
+      } else {
+        toast.success("Event deleted")
+        fetchEvents()
+      }
+    } catch (err) {
+      console.error("Unexpected error deleting event:", err)
+      toast.error("An unexpected error occurred")
     }
+  }
+
+  function handleExport() {
+    if (events.length === 0) {
+      toast.warning("No events to export")
+      return
+    }
+    exportToCSV(events, `events-${new Date().toISOString().split('T')[0]}`)
+    toast.success("Events exported!")
   }
 
   function openEditDialog(event: CalendarEvent) {
@@ -163,13 +223,13 @@ export default function CalendarPage() {
 
   const displayEvents = selectedDate
     ? events.filter((e) => {
-        const eventDate = new Date(e.event_date)
-        return (
-          eventDate.getDate() === selectedDate.getDate() &&
-          eventDate.getMonth() === selectedDate.getMonth() &&
-          eventDate.getFullYear() === selectedDate.getFullYear()
-        )
-      })
+      const eventDate = new Date(e.event_date)
+      return (
+        eventDate.getDate() === selectedDate.getDate() &&
+        eventDate.getMonth() === selectedDate.getMonth() &&
+        eventDate.getFullYear() === selectedDate.getFullYear()
+      )
+    })
     : events
 
   const upcomingEvents = displayEvents.filter((e) => new Date(e.event_date) > new Date())

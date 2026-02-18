@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+import { exportToCSV } from "@/lib/export"
 
 export default function BookmarksPage() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
@@ -39,32 +41,82 @@ export default function BookmarksPage() {
 
   async function fetchBookmarks() {
     setIsLoading(true)
-    const { data, error } = await supabase.from("bookmarks").select("*").order("created_at", { ascending: false })
+    try {
+      const { data, error } = await supabase.from("bookmarks").select("*").order("created_at", { ascending: false })
 
-    if (!error && data) {
-      setBookmarks(data)
+      if (error) {
+        console.error("Error fetching bookmarks:", error)
+        toast.error("Failed to load bookmarks")
+      } else if (data) {
+        setBookmarks(data)
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err)
+      toast.error("An unexpected error occurred")
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   async function addBookmark() {
-    if (!newBookmark.title.trim() || !newBookmark.url.trim()) return
+    if (!newBookmark.title.trim() || !newBookmark.url.trim()) {
+      toast.warning("Title and URL are required")
+      return
+    }
 
-    const { error } = await supabase.from("bookmarks").insert([newBookmark])
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-    if (!error) {
-      setNewBookmark({ title: "", url: "", description: "", category: "" })
-      setIsDialogOpen(false)
-      fetchBookmarks()
+      if (!user) {
+        toast.error("You must be logged in")
+        return
+      }
+
+      const { error } = await supabase.from("bookmarks").insert([{ ...newBookmark, user_id: user.id }])
+
+      if (error) {
+        console.error("Error adding bookmark:", error)
+        toast.error(`Failed to add bookmark: ${error.message}`)
+      } else {
+        toast.success("Bookmark added successfully")
+        setNewBookmark({ title: "", url: "", description: "", category: "" })
+        setIsDialogOpen(false)
+        fetchBookmarks()
+      }
+    } catch (err) {
+      console.error("Unexpected error adding bookmark:", err)
+      toast.error("An unexpected error occurred")
     }
   }
 
   async function deleteBookmark(id: string) {
-    const { error } = await supabase.from("bookmarks").delete().eq("id", id)
+    if (!confirm("Are you sure you want to delete this bookmark?")) return
 
-    if (!error) {
-      fetchBookmarks()
+    try {
+      const { error } = await supabase.from("bookmarks").delete().eq("id", id)
+
+      if (error) {
+        console.error("Error deleting bookmark:", error)
+        toast.error("Failed to delete bookmark")
+      } else {
+        toast.success("Bookmark deleted")
+        fetchBookmarks()
+      }
+    } catch (err) {
+      console.error("Unexpected error deleting bookmark:", err)
+      toast.error("An unexpected error occurred")
     }
+  }
+
+  function handleExport() {
+    if (bookmarks.length === 0) {
+      toast.warning("No bookmarks to export")
+      return
+    }
+    exportToCSV(bookmarks, `bookmarks-${new Date().toISOString().split('T')[0]}`)
+    toast.success("Bookmarks exported!")
   }
 
   const filteredBookmarks = bookmarks.filter(

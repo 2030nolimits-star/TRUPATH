@@ -81,5 +81,20 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: radial-gradient(circle at top left, oklch(0.2 0.05 290 / 0.15), transparent),
+                      radial-gradient(circle at bottom right, oklch(0.65 0.2 240 / 0.1), transparent);
+    background-attachment: fixed;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-card/60 backdrop-blur-md border-white/10 shadow-xl;
+  }
+  .glass-dark {
+    @apply bg-black/40 backdrop-blur-lg border-white/5 shadow-2xl;
+  }
+  .glass-border {
+    @apply border border-white/10;
   }
 }

@@ -27,6 +27,7 @@ export interface Project {
   progress: number
   start_date?: string
   target_date?: string
+  shared_with?: string[]
   created_at: string
   updated_at: string
 }
@@ -49,6 +50,7 @@ export interface Note {
   content: string
   category?: string
   tags?: string[]
+  attachment_url?: string
   created_at: string
   updated_at: string
 }

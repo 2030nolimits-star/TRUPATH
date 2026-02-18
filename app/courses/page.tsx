@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
-import { Plus, Trash2, Edit, Trophy, PartyPopper } from "lucide-react"
+import { Plus, Trash2, Edit, Trophy, PartyPopper, Search } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -19,12 +19,18 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+import { exportToCSV } from "@/lib/export"
+import { notificationService } from "@/lib/notifications"
+import confetti from "canvas-confetti"
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"all" | "in-progress" | "completed">("all")
   const [showCelebration, setShowCelebration] = useState(false)
   const [completedCourseName, setCompletedCourseName] = useState("")
   const [formData, setFormData] = useState({
@@ -47,12 +53,21 @@ export default function CoursesPage() {
 
   async function fetchCourses() {
     setIsLoading(true)
-    const { data, error } = await supabase.from("courses").select("*").order("created_at", { ascending: false })
+    try {
+      const { data, error } = await supabase.from("courses").select("*").order("created_at", { ascending: false })
 
-    if (!error && data) {
-      setCourses(data)
+      if (error) {
+        console.error("Error fetching courses:", error);
+        toast.error("Failed to load courses");
+      } else if (data) {
+        setCourses(data)
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   function calculateProgress(completedLessons: number, totalLessons: number) {
@@ -61,49 +76,84 @@ export default function CoursesPage() {
   }
 
   async function saveCourse() {
-    if (!formData.name.trim()) return
+    if (!formData.name.trim()) {
+      toast.warning("Course name is required");
+      return;
+    }
 
     const progress = calculateProgress(formData.completed_lessons, formData.total_lessons)
     const status = progress === 100 ? "completed" : progress > 0 ? "in-progress" : "not-started"
 
     const courseData = { ...formData, progress, status }
 
-    if (editingCourse) {
-      const wasCompleted = editingCourse.status === "completed"
-      const isNowCompleted = status === "completed"
+    try {
+      if (editingCourse) {
+        const wasCompleted = editingCourse.status === "completed"
+        const isNowCompleted = status === "completed"
 
-      const { error } = await supabase.from("courses").update(courseData).eq("id", editingCourse.id)
+        const { error } = await supabase.from("courses").update(courseData).eq("id", editingCourse.id)
 
-      if (!error) {
-        if (!wasCompleted && isNowCompleted) {
-          triggerCelebration(formData.name)
+        if (error) {
+          console.error("Error updating course:", error);
+          toast.error(`Failed to update course: ${error.message}`);
+        } else {
+          toast.success("Course updated successfully");
+          if (!wasCompleted && isNowCompleted) {
+            triggerCelebration(formData.name)
+          }
+          setEditingCourse(null)
+          resetForm()
+          fetchCourses()
         }
-        setEditingCourse(null)
-        resetForm()
-        fetchCourses()
-      }
-    } else {
-      const { error } = await supabase.from("courses").insert([courseData])
-      if (!error) {
-        if (status === "completed") {
-          triggerCelebration(formData.name)
+      } else {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          toast.error("You must be logged in")
+          return
         }
-        resetForm()
-        fetchCourses()
+
+        const { error } = await supabase.from("courses").insert([{ ...courseData, user_id: user.id }])
+
+        if (error) {
+          console.error("Error creating course:", error);
+          toast.error(`Failed to create course: ${error.message}`);
+        } else {
+          toast.success("Course added successfully");
+          if (status === "completed") {
+            triggerCelebration(formData.name)
+          }
+          resetForm()
+          fetchCourses()
+        }
       }
+    } catch (err) {
+      console.error("Unexpected error saving course:", err);
+      toast.error("An unexpected error occurred");
     }
+  }
+
+  function handleExport() {
+    if (courses.length === 0) {
+      toast.warning("No courses to export")
+      return
+    }
+    exportToCSV(courses, `courses-${new Date().toISOString().split('T')[0]}`)
+    toast.success("Courses exported!")
   }
 
   function triggerCelebration(courseName: string) {
     setCompletedCourseName(courseName)
     setShowCelebration(true)
 
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Course Completed!", {
-        body: `Congratulations! You've completed ${courseName}`,
-        icon: "/icon.svg",
-      })
-    }
+    notificationService.send({
+      title: "Course Completed!",
+      body: `Congratulations! You've completed ${courseName}`,
+    })
+
+    toast.success(`Congratulations on completing ${courseName}! 🎉`);
 
     setTimeout(() => {
       setShowCelebration(false)
@@ -111,9 +161,20 @@ export default function CoursesPage() {
   }
 
   async function deleteCourse(id: string) {
-    const { error } = await supabase.from("courses").delete().eq("id", id)
-    if (!error) {
-      fetchCourses()
+    if (!confirm("Are you sure you want to delete this course?")) return;
+
+    try {
+      const { error } = await supabase.from("courses").delete().eq("id", id)
+      if (error) {
+        console.error("Error deleting course:", error);
+        toast.error("Failed to delete course");
+      } else {
+        toast.success("Course deleted");
+        fetchCourses()
+      }
+    } catch (err) {
+      console.error("Unexpected error deleting course:", err);
+      toast.error("An unexpected error occurred");
     }
   }
 
@@ -154,8 +215,17 @@ export default function CoursesPage() {
     completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
   }
 
-  const activeCourses = courses.filter((c) => c.status !== "completed")
-  const completedCourses = courses.filter((c) => c.status === "completed")
+  const filteredCourses = courses.filter((course) => {
+    const matchesSearch = course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.platform?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.description?.toLowerCase().includes(searchQuery.toLowerCase())
+
+    if (statusFilter === "all") return matchesSearch
+    return matchesSearch && course.status === statusFilter
+  })
+
+  const activeCourses = filteredCourses.filter((c) => c.status !== "completed")
+  const completedCourses = filteredCourses.filter((c) => c.status === "completed")
 
   return (
     <div>
@@ -177,122 +247,164 @@ export default function CoursesPage() {
         </div>
       )}
 
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Courses</h1>
           <p className="mt-1 text-muted-foreground">Track your learning journey with celebrations</p>
         </div>
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            setIsDialogOpen(open)
-            if (!open) {
-              setEditingCourse(null)
-              resetForm()
-            }
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Course
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingCourse ? "Edit Course" : "Add New Course"}</DialogTitle>
-              <DialogDescription>
-                {editingCourse ? "Update your course details" : "Start tracking a new course"}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Course Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Course title"
-                />
-              </div>
-              <div>
-                <Label htmlFor="platform">Platform</Label>
-                <Input
-                  id="platform"
-                  value={formData.platform}
-                  onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
-                  placeholder="e.g., Coursera, Udemy, YouTube"
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="What will you learn?"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="completed_lessons">Completed Lessons</Label>
-                  <Input
-                    id="completed_lessons"
-                    type="number"
-                    min="0"
-                    value={formData.completed_lessons}
-                    onChange={(e) =>
-                      setFormData({ ...formData, completed_lessons: Math.max(0, Number.parseInt(e.target.value) || 0) })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="total_lessons">Total Lessons</Label>
-                  <Input
-                    id="total_lessons"
-                    type="number"
-                    min="0"
-                    value={formData.total_lessons}
-                    onChange={(e) =>
-                      setFormData({ ...formData, total_lessons: Math.max(0, Number.parseInt(e.target.value) || 0) })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="start_date">Start Date</Label>
-                  <Input
-                    id="start_date"
-                    type="date"
-                    value={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="target_completion_date">Target Completion</Label>
-                  <Input
-                    id="target_completion_date"
-                    type="date"
-                    value={formData.target_completion_date}
-                    onChange={(e) => setFormData({ ...formData, target_completion_date: e.target.value })}
-                  />
-                </div>
-              </div>
-              <Button onClick={saveCourse} className="w-full">
-                {editingCourse ? "Update Course" : "Add Course"}
+        <div className="flex flex-wrap gap-2">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search courses..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open)
+              if (!open) {
+                setEditingCourse(null)
+                resetForm()
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Course
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingCourse ? "Edit Course" : "Add New Course"}</DialogTitle>
+                <DialogDescription>
+                  {editingCourse ? "Update your course details" : "Start tracking a new course"}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Course Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Course title"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="platform">Platform</Label>
+                  <Input
+                    id="platform"
+                    value={formData.platform}
+                    onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
+                    placeholder="e.g., Coursera, Udemy, YouTube"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="What will you learn?"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="completed_lessons">Completed Lessons</Label>
+                    <Input
+                      id="completed_lessons"
+                      type="number"
+                      min="0"
+                      value={formData.completed_lessons}
+                      onChange={(e) =>
+                        setFormData({ ...formData, completed_lessons: Math.max(0, Number.parseInt(e.target.value) || 0) })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="total_lessons">Total Lessons</Label>
+                    <Input
+                      id="total_lessons"
+                      type="number"
+                      min="0"
+                      value={formData.total_lessons}
+                      onChange={(e) =>
+                        setFormData({ ...formData, total_lessons: Math.max(0, Number.parseInt(e.target.value) || 0) })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="start_date">Start Date</Label>
+                    <Input
+                      id="start_date"
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="target_completion_date">Target Completion</Label>
+                    <Input
+                      id="target_completion_date"
+                      type="date"
+                      value={formData.target_completion_date}
+                      onChange={(e) => setFormData({ ...formData, target_completion_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <Button onClick={saveCourse} className="w-full">
+                  {editingCourse ? "Update Course" : "Add Course"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <div className="mb-8 flex flex-wrap gap-2">
+        <Button
+          variant={statusFilter === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("all")}
+          className="rounded-full"
+        >
+          All Courses
+        </Button>
+        <Button
+          variant={statusFilter === "in-progress" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("in-progress")}
+          className="rounded-full"
+        >
+          In Progress
+        </Button>
+        <Button
+          variant={statusFilter === "completed" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("completed")}
+          className="rounded-full"
+        >
+          Completed
+        </Button>
       </div>
 
       {isLoading ? (
         <p className="text-center text-muted-foreground">Loading courses...</p>
-      ) : courses.length === 0 ? (
+      ) : filteredCourses.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="text-muted-foreground">No courses yet. Start tracking your learning journey!</p>
+            <p className="text-muted-foreground">
+              {searchQuery || statusFilter !== "all"
+                ? "No courses match your filters"
+                : "No courses yet. Start tracking your learning journey!"}
+            </p>
           </CardContent>
         </Card>
       ) : (
