@@ -21,6 +21,12 @@ export default function SignupPage() {
     async function handleSignup(e: React.FormEvent) {
         e.preventDefault()
 
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            toast.error("Configuration error. Please check your environment variables.")
+            console.error("Missing Supabase environment variables")
+            return
+        }
+
         if (password !== confirmPassword) {
             toast.error("Passwords do not match")
             return
@@ -41,13 +47,14 @@ export default function SignupPage() {
 
             if (error) {
                 toast.error(error.message)
+                console.error("Signup error:", error)
             } else {
                 toast.success("Account created! Please log in.")
                 router.push("/login")
             }
         } catch (err) {
-            toast.error("An unexpected error occurred")
-            console.error(err)
+            toast.error("Connection error. Check if your dev server is running.")
+            console.error("Unexpected signup error:", err)
         } finally {
             setIsLoading(false)
         }

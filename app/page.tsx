@@ -162,92 +162,29 @@ export default function DashboardPage() {
         })}
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <Card className="border-primary/20 bg-card">
-          <CardHeader>
-            <CardTitle className="text-xl">Progress Analytics</CardTitle>
-            <CardDescription>Visual breakdown of your productivity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex h-[300px] items-center justify-center">
-                <p className="text-muted-foreground animate-pulse">Loading charts...</p>
-              </div>
-            ) : (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", color: "hsl(var(--foreground))" }}
-                      cursor={{ fill: "hsl(var(--primary)/0.1)" }}
-                    />
-                    <Bar dataKey="total" fill="hsl(var(--primary)/0.2)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="completed" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="active" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-primary/20 bg-card">
-          <CardHeader>
-            <CardTitle className="text-xl">Recent Activity</CardTitle>
-            <CardDescription>Your latest updates and achievements</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <p className="text-center text-muted-foreground">Loading activity...</p>
-            ) : recentActivity.length === 0 ? (
-              <p className="text-center text-muted-foreground py-12">No recent activity found.</p>
-            ) : (
-              <div className="space-y-4">
-                {recentActivity.map((item, idx) => (
-                  <div key={item.id + idx} className="flex items-center gap-4 rounded-lg border border-border p-3 transition-colors hover:bg-accent/5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <item.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1 overflow-hidden">
-                      <p className="font-medium truncate">{item.title}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(item.time).toLocaleDateString()} {new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        <Badge variant="secondary" className="ml-2 text-[10px] uppercase">{item.type}</Badge>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
       <Card className="mt-8 border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 overflow-hidden">
         <CardHeader>
-          <CardTitle>Achievements Dashboard</CardTitle>
-          <CardDescription>Cumulative stats across your TRUPATH</CardDescription>
+          <CardTitle>Your Progress</CardTitle>
+          <CardDescription>Track your achievements at a glance</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-center text-muted-foreground">Calculating stats...</p>
+            <div className="flex justify-center p-8">
+              <p className="text-muted-foreground animate-pulse">Calculating stats...</p>
+            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-3">
               {[
-                { label: "Done Tasks", val: stats.completedTodos, color: "text-primary" },
-                { label: "Active Projs", val: stats.activeProjects, color: "text-accent" },
-                { label: "Study Flow", val: stats.coursesInProgress, color: "text-primary" },
-                { label: "Saves", val: stats.totalBookmarks, color: "text-accent" },
-                { label: "Events", val: stats.upcomingEvents, color: "text-primary" },
-                { label: "Notes", val: stats.totalNotes, color: "text-accent" }
+                { label: "Completed Todos", val: stats.completedTodos, color: "text-primary" },
+                { label: "Active Projects", val: stats.activeProjects, color: "text-accent" },
+                { label: "Courses In Progress", val: stats.coursesInProgress, color: "text-primary" },
+                { label: "Saved Bookmarks", val: stats.totalBookmarks, color: "text-accent" },
+                { label: "Calendar Events", val: stats.upcomingEvents, color: "text-primary" },
+                { label: "Learning Notes", val: stats.totalNotes, color: "text-accent" }
               ].map((s, idx) => (
-                <div key={idx} className="flex flex-col items-center justify-center p-4 rounded-xl bg-background/50 border border-border/50">
-                  <p className={`text-3xl font-bold ${s.color}`}>{s.val}</p>
-                  <p className="mt-1 text-[10px] uppercase font-bold text-muted-foreground text-center">{s.label}</p>
+                <div key={idx} className="flex flex-col items-start">
+                  <p className={`text-6xl font-bold ${s.color}`}>{s.val}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{s.label}</p>
                 </div>
               ))}
             </div>
