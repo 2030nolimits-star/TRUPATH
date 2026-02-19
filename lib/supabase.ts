@@ -8,12 +8,16 @@ export function getSupabase() {
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error("Supabase environment variables are missing. Check your .env.local file.")
-      // Return a dummy client or throw error? 
-      // Most Next.js apps will fail anyways, but let's make it clear.
+      const missingVars = []
+      if (!supabaseUrl) missingVars.push("NEXT_PUBLIC_SUPABASE_URL")
+      if (!supabaseKey) missingVars.push("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+
+      console.error(`Supabase configuration error: Missing environment variables (${missingVars.join(", ")}). Please ensure they are defined in your .env.local and that you have restarted the dev server.`)
+
+      // Fallback to avoid complete crash on import, but this client will fail on requests
       return createBrowserClient(
-        "https://missing-url.supabase.co",
-        "missing-key"
+        supabaseUrl || "https://missing-url.supabase.co",
+        supabaseKey || "missing-key"
       )
     }
 

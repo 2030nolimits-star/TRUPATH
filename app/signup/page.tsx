@@ -21,9 +21,15 @@ export default function SignupPage() {
     async function handleSignup(e: React.FormEvent) {
         e.preventDefault()
 
-        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        if (!supabaseUrl || !supabaseKey) {
             toast.error("Configuration error. Please check your environment variables.")
-            console.error("Missing Supabase environment variables")
+            console.error("Missing Supabase environment variables in signup page:", {
+                url: !!supabaseUrl,
+                key: !!supabaseKey
+            })
             return
         }
 

@@ -19,6 +19,13 @@ export default function LoginPage() {
 
     async function handleLogin(e: React.FormEvent) {
         e.preventDefault()
+
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            toast.error("Configuration error. Please check your environment variables.")
+            console.error("Missing Supabase environment variables in login page")
+            return
+        }
+
         setIsLoading(true)
 
         try {
