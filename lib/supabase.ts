@@ -12,7 +12,8 @@ export function getSupabase() {
       if (!supabaseUrl) missingVars.push("NEXT_PUBLIC_SUPABASE_URL")
       if (!supabaseKey) missingVars.push("NEXT_PUBLIC_SUPABASE_ANON_KEY")
 
-      console.error(`Supabase configuration error: Missing environment variables (${missingVars.join(", ")}). Please ensure they are defined in your .env.local and that you have restarted the dev server.`)
+      console.error(`Supabase configuration error: Missing environment variables (${missingVars.join(", ")}).`)
+      console.warn("Please ensure they are defined in your .env.local file and restart your dev server (Ctrl+C and npm run dev).")
 
       // Fallback to avoid complete crash on import, but this client will fail on requests
       return createBrowserClient(

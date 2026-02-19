@@ -25,10 +25,11 @@ export default function SignupPage() {
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
         if (!supabaseUrl || !supabaseKey) {
-            toast.error("Configuration error. Please check your environment variables.")
+            toast.error("Configuration error: Supabase variables missing.")
             console.error("Missing Supabase environment variables in signup page:", {
                 url: !!supabaseUrl,
-                key: !!supabaseKey
+                key: !!supabaseKey,
+                all_envs: Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC_'))
             })
             return
         }
